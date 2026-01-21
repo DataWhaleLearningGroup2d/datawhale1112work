@@ -1,0 +1,55 @@
+# -*- coding: utf-8 -*-
+"""Example for stateful MCP client."""
+import asyncio
+import os
+
+from config import GAODE_API_KEY, DASHSCOPE_API_KEY
+from agentscope.agent import ReActAgent, UserAgent
+from agentscope.formatter import DashScopeChatFormatter
+from agentscope.mcp import HttpStatelessClient
+from agentscope.model import DashScopeChatModel
+from agentscope.tool import Toolkit
+
+
+async def main() -> None:
+    """Create a stateful MCP client and use it to chat with the model."""
+
+    # 创建高德 MCP client
+    client = HttpStatelessClient(
+        name="amap",
+        transport="streamable_http",
+        url=f"https://mcp.amap.com/mcp?key={GAODE_API_KEY}",
+    )
+
+    # 注册工具
+    toolkit = Toolkit()
+    await toolkit.register_mcp_client(client)
+
+    # 创建智能体
+    agent = ReActAgent(
+        name="Friday",
+        sys_prompt="You are a helpful assistant named Friday.",
+        model=DashScopeChatModel(
+            model_name="qwen3-max-preview",
+            api_key=DASHSCOPE_API_KEY,
+        ),
+        formatter=DashScopeChatFormatter(),
+        toolkit=toolkit,
+    )
+
+    # 创建用户输入的代理
+    user = UserAgent(name="user")
+
+    # 通过消息的显式传递构建对话逻辑
+    msg = None
+    while True:
+        msg = await agent(msg)
+        msg = await user(msg)
+        if msg.get_text_content() == "exit":
+            break
+
+
+asyncio.run(main())
+
+# Query:
+# - 搜索阿里云谷园区附近的咖啡厅
