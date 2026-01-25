@@ -1,0 +1,5 @@
+agentscope
+openai
+requests
+json5
+apscheduler
