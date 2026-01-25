@@ -3,3 +3,4 @@ openai
 requests
 json5
 apscheduler
+beautifulsoup4

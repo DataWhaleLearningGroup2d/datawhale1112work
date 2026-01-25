@@ -31,8 +31,9 @@ socketio = SocketIO(app, async_mode='threading')
 class LinnaeAgent:
     """琳奈AI伙伴Agent."""
 
-    def __init__(self, socketio=None):
+    def __init__(self, socketio=None, initial_topics=None):
         self.socketio = socketio
+        self.initial_topics = initial_topics or ["今天过得怎么样？", "最近有什么有趣的事吗？", "你喜欢做什么运动？"]
         self.tools = ChatTools()
         self.toolkit = Toolkit()
         self.scheduler = AsyncIOScheduler()
@@ -66,7 +67,7 @@ class LinnaeAgent:
 
     async def collect_topics(self):
         """采集话题"""
-        topics = self.tools.get_topics()
+        topics = await self.tools.get_topics()
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = os.path.join('topics', f"topics_{timestamp}.json")
         with open(filename, "w", encoding="utf-8") as f:
@@ -132,11 +133,12 @@ def index():
 
 @socketio.on('connect')
 def handle_connect():
+    global linnae
     print("客户端连接")
     with app.app_context():
         socketio.emit('message', {'sender': 'bot', 'message': '你好！我是琳奈，很高兴见到你！'})
         # 发送话题选项
-        topics = ["今天过得怎么样？", "最近有什么有趣的事吗？", "你喜欢做什么运动？"]
+        topics = linnae.initial_topics
         socketio.emit('message', {
             'sender': 'bot',
             'message': '请选择一个话题开始聊天：',
@@ -166,7 +168,11 @@ linnae = None
 
 async def main():
     global linnae
-    linnae = LinnaeAgent(socketio)
+    # 获取初始话题
+    tools = ChatTools()
+    initial_topics = await tools.get_topics()
+    initial_topics = initial_topics[:3]  # 取前3个
+    linnae = LinnaeAgent(socketio, initial_topics)
     socketio.start_background_task(lambda: asyncio.run(linnae.run()))
     # 打开浏览器
     webbrowser.open('http://localhost:5001')
