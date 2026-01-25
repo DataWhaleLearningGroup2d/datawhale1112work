@@ -3,9 +3,13 @@
 import asyncio
 import os
 import json
+import webbrowser
+import threading
 from datetime import datetime
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
+from flask import Flask, render_template
+from flask_socketio import SocketIO, emit
 
 from agentscope.agent import ReActAgent, UserAgent
 from agentscope.tool import Toolkit
@@ -14,10 +18,14 @@ from model import SiliconflowModel
 from tool import ChatTools
 from config import API_KEY, TOPIC_COLLECTION_INTERVAL, WAKE_UP_INTERVAL
 
+app = Flask(__name__)
+socketio = SocketIO(app, async_mode='threading')
+
 class LinnaeAgent:
     """琳奈AI伙伴Agent."""
 
-    def __init__(self):
+    def __init__(self, socketio=None):
+        self.socketio = socketio
         self.tools = ChatTools()
         self.toolkit = Toolkit()
         self.scheduler = AsyncIOScheduler()
@@ -60,8 +68,10 @@ class LinnaeAgent:
 
     async def wake_up(self):
         """定时唤起"""
-        print("琳奈：嘿，朋友！好久不见，你今天过得怎么样？")
-        # 这里可以扩展为实际对话，但为了demo简化
+        message = "琳奈：嘿，朋友！好久不见，你今天过得怎么样？"
+        print(message)
+        if self.socketio:
+            self.socketio.emit('message', {'sender': 'bot', 'message': message})
 
     async def chat_loop(self):
         """交互式聊天循环"""
@@ -89,15 +99,64 @@ class LinnaeAgent:
         )
         self.scheduler.start()
 
-        # 运行聊天循环
-        await self.chat_loop()
+        # 保持运行
+        await asyncio.sleep(1000000)
 
-        # 关闭调度器
-        self.scheduler.shutdown()
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@socketio.on('connect')
+def handle_connect():
+    print("客户端连接")
+    socketio.emit('message', {'sender': 'bot', 'message': '你好！我是琳奈，很高兴见到你！'})
+
+@socketio.on('message')
+def handle_message(data):
+    user_message = data['message']
+    print(f"用户: {user_message}")
+    # 先发送用户消息到客户端显示
+    socketio.emit('message', {'sender': 'user', 'message': user_message})
+    print("处理用户消息")
+    # 发送正在输入信号
+    socketio.emit('typing')
+    print("发送typing")
+    # 处理bot回复
+    threading.Thread(target=lambda: asyncio.run(send_bot_response(user_message))).start()
+    print("gevent.spawn called")
+
+async def send_bot_response(user_message):
+    print("send_bot_response started")
+    global linnae
+    print(f"linnae is {linnae}")
+    print("开始处理bot回复")
+    if API_KEY == "test":
+        # 模拟回复
+        bot_message = f"你好！我是琳奈，很高兴见到你！你说的是：{user_message}。今天天气真好，我们聊聊你的兴趣爱好吧！"
+        print(f"琳奈 (模拟): {bot_message}")
+        socketio.emit('message', {'sender': 'bot', 'message': bot_message})
+        return
+    try:
+        msg = await linnae.user(user_message)
+        msg = await linnae.agent(msg)
+        bot_message = msg.get_text_content()
+        print(f"琳奈: {bot_message}")
+        socketio.emit('message', {'sender': 'bot', 'message': bot_message})
+    except Exception as e:
+        error_msg = f"抱歉，我遇到了一些问题：{str(e)}"
+        print(f"错误: {error_msg}")
+        socketio.emit('message', {'sender': 'bot', 'message': error_msg})
+
+linnae = None
 
 async def main():
-    linnae = LinnaeAgent()
-    await linnae.run()
+    global linnae
+    linnae = LinnaeAgent(socketio)
+    socketio.start_background_task(lambda: asyncio.run(linnae.run()))
+    # 打开浏览器
+    webbrowser.open('http://localhost:5001')
+    # 启动Flask服务器
+    socketio.run(app, host='0.0.0.0', port=5001, debug=False)
 
 if __name__ == "__main__":
     asyncio.run(main())

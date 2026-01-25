@@ -6,3 +6,6 @@ mcp_tools/config.py
 /电子AI伙伴/__pycache__
 电子AI伙伴/topics_20260125_170845.json
 电子AI伙伴/topics_20260125_171142.json
+*.pyc
+*.pyc
+/电子AI伙伴/__pycache__
