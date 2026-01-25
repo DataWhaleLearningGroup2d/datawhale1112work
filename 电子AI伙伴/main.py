@@ -146,6 +146,8 @@ def handle_message(data):
     # 发送用户消息到客户端显示
     with app.app_context():
         socketio.emit('message', {'sender': 'user', 'message': user_message})
+        # 显示正在输入指示器
+        socketio.emit('typing')
 
 linnae = None
 
