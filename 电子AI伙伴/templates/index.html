@@ -108,6 +108,25 @@
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${data.sender}`;
             messageDiv.textContent = data.message;
+            if (data.options) {
+                const optionsDiv = document.createElement('div');
+                optionsDiv.style.marginTop = '10px';
+                data.options.forEach(option => {
+                    const button = document.createElement('button');
+                    button.textContent = option;
+                    button.style.marginRight = '10px';
+                    button.style.padding = '5px 10px';
+                    button.style.border = '1px solid #007bff';
+                    button.style.backgroundColor = '#f8f9fa';
+                    button.style.borderRadius = '5px';
+                    button.style.cursor = 'pointer';
+                    button.onclick = function() {
+                        sendMessageFromOption(option);
+                    };
+                    optionsDiv.appendChild(button);
+                });
+                messageDiv.appendChild(optionsDiv);
+            }
             messagesContainer.appendChild(messageDiv);
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
         });
@@ -116,6 +135,10 @@
             typingIndicator.style.display = 'block';
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
         });
+
+        function sendMessageFromOption(option) {
+            socket.emit('message', {message: option});
+        }
 
         function sendMessage() {
             const message = messageInput.value.trim();

@@ -5,18 +5,25 @@ import os
 import json
 import webbrowser
 import threading
-from datetime import datetime
+from datetime import datetime, timedelta
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from flask import Flask, render_template
 from flask_socketio import SocketIO, emit
-
+from config import API_KEY,TOPIC_COLLECTION_INTERVAL, WAKE_UP_INTERVAL
 from agentscope.agent import ReActAgent, UserAgent
 from agentscope.tool import Toolkit
 from agentscope.formatter import OpenAIChatFormatter
 from model import SiliconflowModel
 from tool import ChatTools
-from config import API_KEY, TOPIC_COLLECTION_INTERVAL, WAKE_UP_INTERVAL
+import os
+if not os.path.exists('message'):
+    os.makedirs('message')
+with open(os.path.join('message', 'messages.json'), 'w') as f:
+    json.dump([], f)
+
+if not os.path.exists('topics'):
+    os.makedirs('topics')
 
 app = Flask(__name__)
 socketio = SocketIO(app, async_mode='threading')
@@ -61,17 +68,34 @@ class LinnaeAgent:
         """采集话题"""
         topics = self.tools.get_topics()
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"topics_{timestamp}.json"
+        filename = os.path.join('topics', f"topics_{timestamp}.json")
         with open(filename, "w", encoding="utf-8") as f:
             json.dump(topics, f, ensure_ascii=False, indent=4)
         print(f"采集到话题并保存到 {filename}")
 
     async def wake_up(self):
-        """定时唤起"""
-        message = "琳奈：嘿，朋友！好久不见，你今天过得怎么样？"
-        print(message)
-        if self.socketio:
-            self.socketio.emit('message', {'sender': 'bot', 'message': message})
+        """定时唤起，加载近10分钟的对话历史并生成回复"""
+        if os.path.exists(os.path.join('message', 'messages.json')):
+            with open(os.path.join('message', 'messages.json'), 'r') as f:
+                messages = json.load(f)
+            # 过滤最近10分钟的消息
+            now = datetime.now()
+            recent_messages = [
+                m for m in messages
+                if datetime.fromisoformat(m['timestamp']) > now - timedelta(minutes=10)
+            ]
+            if recent_messages:
+                # 拼接历史消息作为输入
+                history_text = "\n".join([f"{m['sender']}: {m['message']}" for m in recent_messages])
+                print(f"加载近10分钟对话历史: {len(recent_messages)} 条消息")
+                # 生成回复
+                msg = await self.user(f"基于以下对话历史，请作为琳奈回复：\n{history_text}")
+                msg = await self.agent(msg)
+                bot_message = msg.get_text_content()
+                print(f"琳奈回复: {bot_message}")
+                if self.socketio:
+                    with app.app_context():
+                        socketio.emit('message', {'sender': 'bot', 'message': bot_message})
 
     async def chat_loop(self):
         """交互式聊天循环"""
@@ -109,43 +133,34 @@ def index():
 @socketio.on('connect')
 def handle_connect():
     print("客户端连接")
-    socketio.emit('message', {'sender': 'bot', 'message': '你好！我是琳奈，很高兴见到你！'})
+    with app.app_context():
+        socketio.emit('message', {'sender': 'bot', 'message': '你好！我是琳奈，很高兴见到你！'})
+        # 发送话题选项
+        topics = ["今天过得怎么样？", "最近有什么有趣的事吗？", "你喜欢做什么运动？"]
+        socketio.emit('message', {
+            'sender': 'bot',
+            'message': '请选择一个话题开始聊天：',
+            'options': topics
+        })
 
 @socketio.on('message')
 def handle_message(data):
     user_message = data['message']
     print(f"用户: {user_message}")
-    # 先发送用户消息到客户端显示
-    socketio.emit('message', {'sender': 'user', 'message': user_message})
-    print("处理用户消息")
-    # 发送正在输入信号
-    socketio.emit('typing')
-    print("发送typing")
-    # 处理bot回复
-    threading.Thread(target=lambda: asyncio.run(send_bot_response(user_message))).start()
-    print("gevent.spawn called")
-
-async def send_bot_response(user_message):
-    print("send_bot_response started")
-    global linnae
-    print(f"linnae is {linnae}")
-    print("开始处理bot回复")
-    if API_KEY == "test":
-        # 模拟回复
-        bot_message = f"你好！我是琳奈，很高兴见到你！你说的是：{user_message}。今天天气真好，我们聊聊你的兴趣爱好吧！"
-        print(f"琳奈 (模拟): {bot_message}")
-        socketio.emit('message', {'sender': 'bot', 'message': bot_message})
-        return
-    try:
-        msg = await linnae.user(user_message)
-        msg = await linnae.agent(msg)
-        bot_message = msg.get_text_content()
-        print(f"琳奈: {bot_message}")
-        socketio.emit('message', {'sender': 'bot', 'message': bot_message})
-    except Exception as e:
-        error_msg = f"抱歉，我遇到了一些问题：{str(e)}"
-        print(f"错误: {error_msg}")
-        socketio.emit('message', {'sender': 'bot', 'message': error_msg})
+    # 存储用户消息到本地文件
+    with open(os.path.join('message', 'messages.json'), 'r') as f:
+        messages = json.load(f)
+    messages.append({
+        'sender': 'user',
+        'message': user_message,
+        'timestamp': datetime.now().isoformat()
+    })
+    with open(os.path.join('message', 'messages.json'), 'w') as f:
+        json.dump(messages, f)
+    print("消息已存储")
+    # 发送用户消息到客户端显示
+    with app.app_context():
+        socketio.emit('message', {'sender': 'user', 'message': user_message})
 
 linnae = None
 

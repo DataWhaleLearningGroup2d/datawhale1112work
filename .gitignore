@@ -9,3 +9,5 @@ mcp_tools/config.py
 *.pyc
 *.pyc
 /电子AI伙伴/__pycache__
+/电子AI伙伴/topics
+/电子AI伙伴/message
