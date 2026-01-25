@@ -29,19 +29,19 @@ class TopicCollectionTool:
         try:
             # 模拟LLM响应 for debugging
             content = '["25岁女生热爱生活", "社交媒体热门话题", "活泼女生日常", "生活分享", "有趣经历"]'
-            # response = await asyncio.to_thread(
-            #     self.client.chat.completions.create,
-            #     model="Qwen/Qwen3-30B-A3B-Instruct-2507",
-            #     messages=[{"role": "user", "content": prompt}]
-            # )
-            # content = response.choices[0].message.content
+            response = await asyncio.to_thread(
+                self.client.chat.completions.create,
+                model="Qwen/Qwen3-30B-A3B-Instruct-2507",
+                messages=[{"role": "user", "content": prompt}]
+            )
+            content = response.choices[0].message.content
             queries = json.loads(content)
             print(f"生成的查询: {queries}")
             if not isinstance(queries, list) or len(queries) != 5:
-                queries = ["25岁女生热爱生活", "社交媒体热门话题", "活泼女生日常", "生活分享", "有趣经历"]
+                queries = ["最近有趣的番剧","最近好玩的游戏","原神最新活动","鸣潮最新活动","热门电影推荐"]
         except Exception as e:
             print(f"LLM生成查询失败: {e}")
-            queries = ["25岁女生热爱生活", "社交媒体热门话题", "活泼女生日常", "生活分享", "有趣经历"]
+            queries = ["最近有趣的番剧","最近好玩的游戏","原神最新活动","鸣潮最新活动","热门电影推荐"]
 
         topics = []
         for q in queries:
