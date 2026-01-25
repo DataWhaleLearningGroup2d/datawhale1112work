@@ -124,7 +124,7 @@ def handle_connect():
         topics = linnae.initial_topics
         socketio.emit('message', {
             'sender': 'bot',
-            'message': '请选择一个话题开始聊天：',
+            'message': '聊天吗？挑一个你感兴趣的吧：',
             'options': topics
         })
 

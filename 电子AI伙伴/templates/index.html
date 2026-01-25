@@ -43,16 +43,32 @@
             padding: 10px;
             border-radius: 10px;
             max-width: 70%;
+            display: flex;
+            align-items: center;
         }
         .message.user {
             background-color: #007bff;
             color: white;
             margin-left: auto;
-            text-align: right;
+            flex-direction: row-reverse;
         }
         .message.bot {
             background-color: #e9ecef;
             color: #333;
+        }
+        .avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            margin: 0 10px;
+        }
+        .message.user .avatar {
+            margin-left: 10px;
+            margin-right: 0;
+        }
+        .message.bot .avatar {
+            margin-right: 10px;
+            margin-left: 0;
         }
         .chat-input {
             display: flex;
@@ -88,7 +104,10 @@
         <div class="chat-messages" id="chat-messages">
             <!-- 消息会动态添加 -->
         </div>
-        <div id="typing-indicator" class="message bot typing" style="display: none;">疯狂码字中...</div>
+        <div id="typing-indicator" class="message bot typing" style="display: none;">
+            <img class="avatar" src="https://i.17173cdn.com/2fhnvk/YWxqaGBf/cms3/oHarYzbtnBFxwsF.jpg" alt="琳奈头像">
+            <div>疯狂码字中...</div>
+        </div>
         <div class="chat-input">
             <input type="text" id="message-input" placeholder="输入你的消息..." onkeypress="handleKeyPress(event)">
             <button onclick="sendMessage()">发送</button>
@@ -107,7 +126,22 @@
             typingIndicator.style.display = 'none';
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${data.sender}`;
-            messageDiv.textContent = data.message;
+            
+            // 添加头像
+            const avatar = document.createElement('img');
+            avatar.className = 'avatar';
+            if (data.sender === 'bot') {
+                avatar.src = 'https://i.17173cdn.com/2fhnvk/YWxqaGBf/cms3/oHarYzbtnBFxwsF.jpg';
+            } else if (data.sender === 'user') {
+                avatar.src = 'https://img2.baidu.com/it/u=417703454,1140287804&fm=253&app=138&f=JPEG?w=800&h=800';
+            }
+            messageDiv.appendChild(avatar);
+            
+            // 添加消息文本
+            const textDiv = document.createElement('div');
+            textDiv.textContent = data.message;
+            messageDiv.appendChild(textDiv);
+            
             if (data.options) {
                 const optionsDiv = document.createElement('div');
                 optionsDiv.style.marginTop = '10px';
@@ -125,7 +159,7 @@
                     };
                     optionsDiv.appendChild(button);
                 });
-                messageDiv.appendChild(optionsDiv);
+                textDiv.appendChild(optionsDiv);
             }
             messagesContainer.appendChild(messageDiv);
             messagesContainer.scrollTop = messagesContainer.scrollHeight;

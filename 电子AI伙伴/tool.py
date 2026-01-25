@@ -16,7 +16,7 @@ class TopicCollectionTool:
     def __init__(self, model=None) -> None:
         self.client = openai.OpenAI(api_key=API_KEY, base_url="https://api.siliconflow.cn/v1")
 
-    async def search_topics(self, query: str = "25岁女生热爱生活 社交媒体 热门话题") -> List[str]:
+    async def search_topics(self, query: str = "最近小红书上有意思的事儿") -> List[str]:
         """
         搜索话题
         Args:
@@ -25,10 +25,10 @@ class TopicCollectionTool:
             话题列表
         """
         # 用LLM生成5条搜索query
-        prompt = "请生成5个当前热门的搜索关键词，用于搜索社交媒体话题。这些关键词应与25岁女生热爱生活、热情活泼的个性相关。请以JSON列表形式返回，例如：[\"关键词1\", \"关键词2\", ...]"
+        prompt = "你是一个热情活泼的搞笑女，以你的喜好生成5个当前热门的搜索关键词，用于搜索社交媒体话题和你的好哥哥分享聊天。请以JSON列表形式返回，例如：[\"关键词1\", \"关键词2\", ...]"
         try:
             # 模拟LLM响应 for debugging
-            content = '["25岁女生热爱生活", "社交媒体热门话题", "活泼女生日常", "生活分享", "有趣经历"]'
+            content = '["搞笑女日常话题","二次元圈子热议","鸣潮游戏最新资讯"]'
             response = await asyncio.to_thread(
                 self.client.chat.completions.create,
                 model="Qwen/Qwen3-30B-A3B-Instruct-2507",
@@ -38,10 +38,10 @@ class TopicCollectionTool:
             queries = json.loads(content)
             print(f"生成的查询: {queries}")
             if not isinstance(queries, list) or len(queries) != 5:
-                queries = ["最近有趣的番剧","最近好玩的游戏","原神最新活动","鸣潮最新活动","热门电影推荐"]
+                queries = ["搞笑女日常话题","二次元圈子热议","鸣潮游戏最新资讯"]
         except Exception as e:
             print(f"LLM生成查询失败: {e}")
-            queries = ["最近有趣的番剧","最近好玩的游戏","原神最新活动","鸣潮最新活动","热门电影推荐"]
+            queries = ["搞笑女日常话题","二次元圈子热议","鸣潮游戏最新资讯"]
 
         topics = []
         for q in queries:
