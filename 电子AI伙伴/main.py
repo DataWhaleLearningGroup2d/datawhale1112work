@@ -9,6 +9,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 
 from agentscope.agent import ReActAgent, UserAgent
 from agentscope.tool import Toolkit
+from agentscope.formatter import OpenAIChatFormatter
 from model import SiliconflowModel
 from tool import ChatTools
 from config import API_KEY, TOPIC_COLLECTION_INTERVAL, WAKE_UP_INTERVAL
@@ -41,6 +42,7 @@ class LinnaeAgent:
                 model_name="Qwen/Qwen3-30B-A3B-Instruct-2507",
                 api_key=API_KEY,
             ),
+            formatter=OpenAIChatFormatter(),
             toolkit=self.toolkit,
             enable_meta_tool=False,
         )
@@ -70,7 +72,7 @@ class LinnaeAgent:
             user_input = input("你: ")
             if user_input.lower() == "exit":
                 break
-            msg = self.user(user_input)
+            msg = await self.user(user_input)
 
     async def run(self):
         """运行所有功能"""
