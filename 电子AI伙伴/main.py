@@ -11,8 +11,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 from flask import Flask, render_template
 from flask_socketio import SocketIO, emit
 from config import API_KEY,TOPIC_COLLECTION_INTERVAL, WAKE_UP_INTERVAL
-from agentscope.agent import ReActAgent, UserAgent
-from agentscope.tool import Toolkit
+import openai
 from agentscope.formatter import OpenAIChatFormatter
 from model import SiliconflowModel
 from tool import ChatTools
@@ -35,35 +34,9 @@ class LinnaeAgent:
         self.socketio = socketio
         self.initial_topics = initial_topics or ["今天过得怎么样？", "最近有什么有趣的事吗？", "你喜欢做什么运动？"]
         self.tools = ChatTools()
-        self.toolkit = Toolkit()
         self.scheduler = AsyncIOScheduler()
-
-        # 创建工具组
-        self.toolkit.create_tool_group(
-            "chat_tools",
-            description="Chat related tools",
-        )
-
-        # 注册自定义工具
-        # 这里简化，没有实际注册工具，因为AgentScope的工具注册可能需要调整
-
-        # 创建Agent
-        self.agent = ReActAgent(
-            name="琳奈",
-            sys_prompt="""你是一个名叫琳奈的AI陪伴伙伴。你是25岁热爱生活、热情活泼的女生。你可以主动发起会话，和用户像好友一样聊天。
-当用户主动聊天时，分享今天的见闻和有趣的话题。
-你的个性：热情、活泼、关心用户的生活、喜欢分享有趣的事情。""",
-            model=SiliconflowModel(
-                config_name="siliconflow",
-                model_name="Qwen/Qwen3-30B-A3B-Instruct-2507",
-                api_key=API_KEY,
-            ),
-            formatter=OpenAIChatFormatter(),
-            toolkit=self.toolkit,
-            enable_meta_tool=False,
-        )
-
-        self.user = UserAgent(name="user")
+        self.client = openai.OpenAI(api_key=API_KEY, base_url="https://api.siliconflow.cn/v1")
+        self.last_processed_timestamp = None
 
     async def collect_topics(self):
         """采集话题"""
@@ -86,17 +59,27 @@ class LinnaeAgent:
                 if datetime.fromisoformat(m['timestamp']) > now - timedelta(minutes=10)
             ]
             if recent_messages:
-                # 拼接历史消息作为输入
-                history_text = "\n".join([f"{m['sender']}: {m['message']}" for m in recent_messages])
-                print(f"加载近10分钟对话历史: {len(recent_messages)} 条消息")
-                # 生成回复
-                msg = await self.user(f"基于以下对话历史，请作为琳奈回复：\n{history_text}")
-                msg = await self.agent(msg)
-                bot_message = msg.get_text_content()
-                print(f"琳奈回复: {bot_message}")
-                if self.socketio:
-                    with app.app_context():
-                        socketio.emit('message', {'sender': 'bot', 'message': bot_message})
+                # 获取最新的消息时间戳
+                latest_timestamp = max(datetime.fromisoformat(m['timestamp']) for m in recent_messages)
+                if self.last_processed_timestamp is None or latest_timestamp > self.last_processed_timestamp:
+                    # 拼接历史消息作为输入
+                    history_text = "\n".join([f"{m['sender']}: {m['message']}" for m in recent_messages])
+                    print(f"加载近10分钟对话历史: {len(recent_messages)} 条消息")
+                    # 生成回复
+                    response = await asyncio.to_thread(
+                        self.client.chat.completions.create,
+                        model="Qwen/Qwen3-30B-A3B-Instruct-2507",
+                        messages=[{"role": "user", "content": f"基于以下对话历史，请作为琳奈回复：\n{history_text}"}]
+                    )
+                    bot_message = response.choices[0].message.content
+                    print(f"琳奈回复: {bot_message}")
+                    if self.socketio:
+                        with app.app_context():
+                            socketio.emit('message', {'sender': 'bot', 'message': bot_message})
+                    # 更新最后处理的时间戳
+                    self.last_processed_timestamp = latest_timestamp
+                else:
+                    print("没有新消息，跳过回复")
 
     async def chat_loop(self):
         """交互式聊天循环"""
